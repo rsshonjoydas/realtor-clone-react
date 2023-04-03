@@ -1,4 +1,5 @@
 import { Route, BrowserRouter as Router, Routes } from 'react-router-dom';
+import Header from './components/Header';
 import ForgotPassword from './pages/ForgotPassword';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -9,6 +10,7 @@ import Register from './pages/Register';
 function App() {
   return (
     <Router>
+      <Header />
       <Routes>
         <Route path='/' element={<Home />} />
         <Route path='/register' element={<Register />} />
