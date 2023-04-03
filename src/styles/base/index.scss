@@ -24,6 +24,10 @@ html::-webkit-scrollbar-track:hover {
   @apply bg-gray-300 dark:bg-gray-500 transition duration-500;
 }
 
+body {
+  background-color: rgb(240, 253, 340);
+}
+
 ::selection {
   background: theme('colors.secondary.DEFAULT');
   color: #fff;
