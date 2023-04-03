@@ -72,7 +72,7 @@ const Register = () => {
             </div>
             <div className='flex justify-between text-sm whitespace-nowrap sm:text-lg'>
               <p className='mb-6'>
-                Do you possess an existing account?
+                Have a account?
                 <Link
                   to='/login'
                   className='ml-1 text-red-600 transition duration-200 ease-in-out hover:text-red-700'
