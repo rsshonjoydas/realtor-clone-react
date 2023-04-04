@@ -1,8 +1,11 @@
+import { createUserWithEmailAndPassword, getAuth, updateProfile } from 'firebase/auth';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-
 import { AiFillEye, AiFillEyeInvisible } from 'react-icons/ai';
+import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import OAuth from '../components/OAuth';
+import { firestore } from '../config/firebase';
 
 const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -13,11 +16,48 @@ const Register = () => {
   });
   const { name, email, password } = formData;
 
+  const navigate = useNavigate();
+
   function onChange(e: React.ChangeEvent<HTMLInputElement>) {
     setFormData((prevState) => ({
       ...prevState,
       [e.target.id]: e.target.value,
     }));
+  }
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    try {
+      const auth = getAuth();
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+
+      const { user } = userCredential;
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      if (name) {
+        await updateProfile(user, {
+          displayName: name,
+        });
+      }
+
+      const formDataCopy = {
+        ...formData,
+        timestamp: serverTimestamp(),
+        password: undefined, // ? set password to undefined instead of deleting it
+      };
+      delete formDataCopy.password;
+      formDataCopy.timestamp = serverTimestamp(); // ? use the timestamp property
+
+      await setDoc(doc(firestore, 'users', user.uid), formDataCopy);
+      toast.success('Sign up was successful');
+      navigate('/');
+    } catch (error) {
+      console.log('🚀 ~ file: Register.tsx:49 ~ onSubmit ~ error:', error);
+      toast.error('Something went wrong with the registration');
+    }
   }
 
   return (
@@ -32,7 +72,7 @@ const Register = () => {
           />
         </div>
         <div className='w-full md:w-[67%] lg:w-[40%] lg:ml-20'>
-          <form>
+          <form onSubmit={onSubmit}>
             <input
               type='text'
               id='name'
