@@ -1,6 +1,19 @@
+import { getAuth } from 'firebase/auth';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { getDownloadURL, getStorage, ref, uploadBytesResumable } from 'firebase/storage';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import { v4 as uuidv4 } from 'uuid';
+import Spinner from '../components/Spinner';
+import { firestore } from '../config/firebase';
+
+interface ImageFile extends File {
+  preview?: string;
+}
 
 const CreateListing = () => {
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     type: 'rent',
     name: '',
@@ -13,6 +26,7 @@ const CreateListing = () => {
     offer: false,
     regularPrice: 0,
     discountedPrice: 0,
+    images: [],
   });
   const {
     type,
@@ -26,17 +40,133 @@ const CreateListing = () => {
     offer,
     regularPrice,
     discountedPrice,
+    images,
   } = formData;
 
   console.log(setFormData);
+  const navigate = useNavigate();
+  const auth = getAuth();
 
-  const onChange = () => {};
+  const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLButtonElement | any>) => {
+    let boolean: boolean | null = null;
+
+    if (e.target.value === 'true') {
+      boolean = true;
+    }
+
+    if (e.target.value === 'false') {
+      boolean = false;
+    }
+
+    const { files } = e.target as HTMLInputElement | any;
+    // ? files
+    if (files) {
+      setFormData((prevState) => ({
+        ...prevState,
+        images: files,
+      }));
+    }
+
+    // ? Text/Boolean/Number
+    if (!files) {
+      setFormData((prevState) => ({
+        ...prevState,
+        [e.target.id]: boolean ?? e.target.value,
+      }));
+    }
+  };
+
+  const onSubmit = async (e: React.ChangeEvent<HTMLInputElement | HTMLButtonElement | any>) => {
+    e.preventDefault();
+
+    setLoading(true);
+
+    if (+discountedPrice >= +regularPrice) {
+      setLoading(false);
+      toast.warn('Discounted price needs to be less than regular price');
+      return true;
+    }
+
+    if (images.length > 6) {
+      setLoading(false);
+      toast.warn('maximum 6 images are allowed');
+      return true;
+    }
+
+    async function storeImage(image: ImageFile): Promise<string> {
+      return new Promise((resolve, reject) => {
+        const filename = `${auth.currentUser?.uid}-${image.name}-${uuidv4()}`;
+        const storage = getStorage();
+        const storageRef = ref(storage, filename);
+        const uploadTask = uploadBytesResumable(storageRef, image);
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            // Observe state change events such as progress, pause, and resume
+            // Get task progress, including the number of bytes uploaded and the total number of bytes to be uploaded
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            console.log(`Upload is ${progress}% done`);
+            switch (snapshot.state) {
+              case 'paused':
+                console.log('Upload is paused');
+                break;
+              case 'running':
+                console.log('Upload is running');
+                break;
+              default:
+                break;
+            }
+          },
+          (error) => {
+            // Handle unsuccessful uploads
+            reject(error);
+          },
+          () => {
+            // Handle successful uploads on complete
+            // For instance, get the download URL: https://firebasestorage.googleapis.com/...
+            getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+              resolve(downloadURL);
+            });
+          }
+        );
+      });
+    }
+
+    const imgUrls = await Promise.all([...images].map((image) => storeImage(image))).catch(
+      (error: any) => {
+        setLoading(false);
+        toast.error('Images not uploaded');
+        console.log('🚀 ~ file: CreateListing.tsx:140 ~ onSubmit ~ error:', error);
+      }
+    );
+
+    const formDataCopy = {
+      ...formData,
+      imgUrls,
+      timestamp: serverTimestamp(),
+      userRef: auth.currentUser?.uid,
+      images: undefined,
+    };
+
+    delete formDataCopy.images;
+
+    formDataCopy.timestamp = serverTimestamp(); // ? use the timestamp property
+
+    const docRef = await addDoc(collection(firestore, 'listings'), formDataCopy);
+    setLoading(false);
+    toast.success('Listing created');
+    navigate(`/category/${formDataCopy.type}/${docRef.id}`);
+
+    return true;
+  };
+
+  if (loading) return <Spinner />;
 
   return (
     <main className='max-w-md px-2 mx-auto'>
       <h1 className='mt-6 text-3xl font-bold text-center'>Create a Listing</h1>
 
-      <form>
+      <form onSubmit={onSubmit}>
         {/* //? Sell / Rent toggle button */}
         <p className='mt-6 text-lg font-semibold'>Sell / Rent</p>
         <div className='flex'>
