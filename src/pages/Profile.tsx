@@ -1,10 +1,17 @@
-/* eslint-disable no-unused-vars */
-/* eslint-disable no-shadow */
-/* eslint-disable no-unused-expressions */
 import { getAuth, updateProfile } from 'firebase/auth';
-import { collection, doc, getDocs, orderBy, query, updateDoc, where } from 'firebase/firestore';
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { FcHome } from 'react-icons/fc';
+import Modal from 'react-modal';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import ListingItem from '../components/ListingItem';
@@ -15,9 +22,30 @@ interface Listing {
   data: any; // Replace 'any' with the actual type of your listing data
 }
 
+// Define the custom styles for the modal
+const customStyles = {
+  content: {
+    top: '50%',
+    left: '50%',
+    right: 'auto',
+    bottom: 'auto',
+    marginRight: '-50%',
+    transform: 'translate(-50%, -50%)',
+    width: '400px',
+    padding: '2rem',
+  },
+  overlay: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: '1000',
+  },
+};
+
 const Profile = () => {
   const auth = getAuth();
   const navigate = useNavigate();
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [listingIdToDelete, setListingIdToDelete] = useState('');
 
   const [listings, setListings] = useState<Listing[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,21 +103,73 @@ const Profile = () => {
         orderBy('timestamp', 'desc')
       );
       const querySnap = await getDocs(q);
-      const listings: any = [];
-      querySnap.forEach((doc) =>
-        listings.push({
-          id: doc.id,
-          data: doc.data(),
+      const listing: any = [];
+      querySnap.forEach((docs) =>
+        listing.push({
+          id: docs.id,
+          data: docs.data(),
         })
       );
-      setListings(listings);
+      setListings(listing);
       setLoading(false);
     }
     fetchUserListings();
   }, [auth.currentUser?.uid]);
 
+  const onDelete = async (listingID: string) => {
+    // Store the ID of the listing to be deleted in state
+    setListingIdToDelete(listingID);
+
+    // Open the modal
+    setIsModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (listingIdToDelete && listings !== null) {
+      // Add a null check for listings
+      await deleteDoc(doc(firestore, 'listings', listingIdToDelete));
+      const updatedListings = listings.filter((listing) => listing.id !== listingIdToDelete);
+      setListings(updatedListings);
+      toast.success('Successfully deleted the listing');
+    }
+
+    // Close the modal
+    setIsModalOpen(false);
+  };
+
+  const closeModal = () => {
+    // Close the modal
+    setIsModalOpen(false);
+  };
+
   return (
     <>
+      <Modal
+        isOpen={isModalOpen}
+        onRequestClose={closeModal}
+        style={customStyles}
+        contentLabel='Delete Listing Modal'
+      >
+        <h2 className='mb-4 text-xl font-bold'>Confirm Delete</h2>
+        <p className='mb-4'>Are you sure you want to delete this listing?</p>
+        <div className='flex justify-end'>
+          <button
+            type='button'
+            onClick={confirmDelete}
+            className='px-4 py-2 mr-2 text-white bg-red-600 rounded'
+          >
+            Delete
+          </button>
+          <button
+            type='button'
+            onClick={closeModal}
+            className='px-4 py-2 text-gray-700 bg-gray-300 rounded'
+          >
+            Cancel
+          </button>
+        </div>
+      </Modal>
+
       <section className='flex flex-col items-center justify-center max-w-6xl mx-auto'>
         <h1 className='mt-6 text-3xl font-bold text-center'>My Profile</h1>
         <div className='w-full md:w-[50%] mt-6 px-3 '>
@@ -118,8 +198,10 @@ const Profile = () => {
                 Do you want to change your name?
                 <span
                   onClick={() => {
-                    changeName && onSubmit();
-                    setChangeName((prevState) => !prevState);
+                    if (changeName) {
+                      onSubmit();
+                      setChangeName((prevState) => !prevState);
+                    }
                   }}
                   className='ml-1 text-red-500 transition duration-200 ease-in-out cursor-pointer hover:text-red-600'
                 >
@@ -152,7 +234,12 @@ const Profile = () => {
             <h2 className='mb-6 text-2xl font-semibold text-center'>My Listings</h2>
             <ul className='grid-cols-2 sm:grid lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5'>
               {listings.map((listing: any) => (
-                <ListingItem key={listing.id} id={listing.id} listing={listing.data} />
+                <ListingItem
+                  key={listing.id}
+                  id={listing.id}
+                  listing={listing.data}
+                  onDelete={() => onDelete(listing.id)}
+                />
               ))}
             </ul>
           </>
