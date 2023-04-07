@@ -142,6 +142,10 @@ const Profile = () => {
     setIsModalOpen(false);
   };
 
+  function onEdit(listingID: any) {
+    navigate(`/edit-listing/${listingID}`);
+  }
+
   return (
     <>
       <Modal
@@ -239,6 +243,7 @@ const Profile = () => {
                   id={listing.id}
                   listing={listing.data}
                   onDelete={() => onDelete(listing.id)}
+                  onEdit={() => onEdit(listing.id)}
                 />
               ))}
             </ul>
